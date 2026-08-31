@@ -88,12 +88,12 @@ class Doc:
         return self.add(f'<mxCell id="{{id}}" value="{label}" style="{style}" vertex="1" parent="{parent}">'
                         f'<mxGeometry x="{x}" y="{y}" width="{w}" height="{h_}" as="geometry"/></mxCell>')
 
-    def edge(self, src, tgt, style, label="", points=(), label_at_end=False):
+    def edge(self, src, tgt, style, label="", points=(), label_at_end=False, base="edgeStyle=orthogonalEdgeStyle;"):
         pts = "".join(f'<mxPoint x="{x}" y="{y}"/>' for x, y in points)
         geo = ('<mxGeometry relative="1" x="1" as="geometry"><mxPoint x="-70" y="-12" as="offset"/>' if label_at_end
                else '<mxGeometry relative="1" as="geometry">')
         arr = f'<Array as="points">{pts}</Array>' if pts else ""
-        return self.add(f'<mxCell id="{{id}}" value="{label}" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=1;endArrow=block;{style}" '
+        return self.add(f'<mxCell id="{{id}}" value="{label}" style="{base}html=1;rounded=1;endArrow=block;{style}" '
                         f'edge="1" parent="1" source="{src}" target="{tgt}">{geo}{arr}</mxGeometry></mxCell>')
 
     def write(self, path, name):
@@ -311,40 +311,94 @@ def check_side(name, spec):
                 fail(f'"{name}": edge {e!r} names unknown node "{end}"')
 
 
-def side(doc, title, spec, other, x0, removed_side):
-    """Lay one side out; returns (width, height). Node status vs the other side colours it."""
-    NW, NH, XS, YS, HDR, PAD = 150, 50, 190, 100, 34, 20
+NW, NH, XS, YS, SHDR, SPAD = 150, 50, 190, 100, 34, 20   # design geometry: node, column pitch, rank pitch, header, padding
+
+
+def plan_side(spec):
+    """Rank the nodes (longest path), then order each rank by the barycenter of its neighbours (3 sweeps) so a
+    node sits under its parents. Returns node positions relative to the side's container plus its size."""
     nodes = [str(n["id"]) for n in spec["nodes"]]
     labels = {str(n["id"]): str(n.get("label", n["id"])) for n in spec["nodes"]}
     edges = [(str(a), str(b)) for a, b in spec.get("edges") or []]
-    other_labels = {str(n["id"]): str(n.get("label", n["id"])) for n in other["nodes"]}
-    other_edges = {(str(a), str(b)) for a, b in other.get("edges") or []}
     rk = ranks(nodes, edges)
-    rows = OrderedDict()
-    for n in nodes:
-        rows.setdefault(rk[n], []).append(n)
+    rows = OrderedDict((r, [n for n in nodes if rk[n] == r]) for r in sorted(set(rk.values())))
     cols = max(len(r) for r in rows.values())
-    w = PAD * 2 + cols * XS - (XS - NW)
-    hgt = HDR + PAD + len(rows) * YS - (YS - NH) + PAD
-    box = doc.box(title, x0, 60, w, hgt, f"swimlane;startSize={HDR};html=1;fontStyle=1;fontSize=14;fillColor=#fafafa;strokeColor=#999999;pointerEvents=0;")
-    ids = {}
-    for r, row in rows.items():
+    preds = {n: [a for a, b in edges if b == n and a != n] for n in nodes}
+    succs = {n: [b for a, b in edges if a == n and a != b] for n in nodes}
+
+    def place(row):
         off = (cols - len(row)) * XS // 2
-        for c, n in enumerate(row):
-            if n in other_labels:
-                st = "M" if labels[n] != other_labels[n] else "K"
-            else:
-                st = "D" if removed_side else "A"
-            fill, stroke = COL[st]
-            dash = "dashed=1;" if st == "D" else ""
-            ids[n] = doc.box(h(labels[n]), PAD + off + c * XS, HDR + PAD + r * YS, NW, NH,
-                             f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};{dash}", parent=box)
+        return {n: off + c * XS for c, n in enumerate(row)}
+
+    pos = {}
+    for row in rows.values():
+        pos.update(place(row))
+    for sweep in range(3):
+        nb = preds if sweep % 2 == 0 else succs
+        for r, row in rows.items():
+            def key(n):
+                xs = [pos[m] for m in nb[n] if rk[m] != r]
+                return sum(xs) / len(xs) if xs else pos[n]
+            row.sort(key=key)
+            pos.update(place(row))
+    rel = {n: (SPAD + pos[n], SHDR + SPAD + rk[n] * YS) for n in nodes}          # top-left, container-relative
+    w = SPAD * 2 + cols * XS - (XS - NW)
+    hgt = SHDR + SPAD + len(rows) * YS - (YS - NH) + SPAD
+    return {"nodes": nodes, "labels": labels, "edges": edges, "rk": rk, "rel": rel, "w": w, "h": hgt}
+
+
+def draw_side(doc, title, plan, other, x0, y0, removed_side):
+    """Draw one side at (x0, y0). Edges get explicit waypoints: the horizontal jog sits in the gap between ranks,
+    a rank-skipping edge runs down a free gutter between columns, and parallel segments are offset a few px."""
+    nodes, labels, edges, rk, rel = plan["nodes"], plan["labels"], plan["edges"], plan["rk"], plan["rel"]
+    other_labels, other_edges = other["labels"], set(other["edges"])
+    box = doc.box(title, x0, y0, plan["w"], plan["h"], f"swimlane;startSize={SHDR};html=1;fontStyle=1;fontSize=14;fillColor=#fafafa;strokeColor=#999999;pointerEvents=0;")
+    ids, abs_ = {}, {}
+    for n in nodes:
+        rx, ry = rel[n]
+        abs_[n] = (x0 + rx, y0 + ry)
+        if n in other_labels:
+            st = "M" if labels[n] != other_labels[n] else "K"
+        else:
+            st = "D" if removed_side else "A"
+        fill, stroke = COL[st]
+        dash = "dashed=1;" if st == "D" else ""
+        ids[n] = doc.box(h(labels[n]), rx, ry, NW, NH, f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};{dash}", parent=box)
+
+    def gap_y(r):                                                  # centre of the gap below rank r
+        return y0 + SHDR + SPAD + r * YS + NH + (YS - NH) // 2
+
+    gutters = sorted({abs_[n][0] - (XS - NW) // 2 for n in nodes} | {abs_[n][0] + NW + (XS - NW) // 2 for n in nodes})
+
+    def free_gutter(gx, r_from, r_to):                             # no box of ranks r_from..r_to within 8px of x
+        return all(not (abs_[m][0] - 8 < gx < abs_[m][0] + NW + 8) for m in nodes if r_from <= rk[m] <= r_to)
+
+    used_gap, used_gut = {}, {}
     for a, b in edges:
         st = "K" if (a, b) in other_edges else ("D" if removed_side else "A")
         _, stroke = COL[st]
-        dash = "dashed=1;" if st == "D" else ""
-        doc.edge(ids[a], ids[b], f"strokeColor={stroke};strokeWidth={1 if st == 'K' else 2};{dash}exitX=0.5;exitY=1;entryX=0.5;entryY=0;")
-    return w, hgt
+        style = f"strokeColor={stroke};strokeWidth={1 if st == 'K' else 2};{'dashed=1;' if st == 'D' else ''}"
+        ra, rb = rk[a], rk[b]
+        if rb <= ra:                                               # backward or same-rank edge: draw.io's router
+            doc.edge(ids[a], ids[b], style)
+            continue
+        sx, tx = abs_[a][0] + NW // 2, abs_[b][0] + NW // 2
+        k = used_gap[ra] = used_gap.get(ra, -1) + 1
+        gy1 = gap_y(ra) + (k % 5 - 2) * 7                          # spread parallel jogs in one gap
+        pts = []
+        if rb == ra + 1:
+            if sx != tx:
+                pts = [(sx, gy1), (tx, gy1)]
+        else:
+            mid = (sx + tx) / 2
+            free = [g for g in gutters if free_gutter(g, ra + 1, rb - 1)]
+            gx = min(free, key=lambda g: abs(g - mid)) if free else int(mid)
+            j = used_gut[gx] = used_gut.get(gx, -1) + 1
+            gx += (j % 3 - 1) * 7
+            k2 = used_gap[rb - 1] = used_gap.get(rb - 1, -1) + 1
+            gy2 = gap_y(rb - 1) + (k2 % 5 - 2) * 7
+            pts = [(sx, gy1), (gx, gy1), (gx, gy2), (tx, gy2)]
+        doc.edge(ids[a], ids[b], style + "exitX=0.5;exitY=1;entryX=0.5;entryY=0;", points=pts, base="edgeStyle=none;")
 
 
 def design_diagram(spec, out):
@@ -353,10 +407,16 @@ def design_diagram(spec, out):
             fail(f'spec needs a "{k}" object')
         check_side(k, spec[k])
     doc = Doc()
-    wb, hb = side(doc, "Before", spec["before"], spec["after"], 40, removed_side=True)
-    wa, ha = side(doc, "After", spec["after"], spec["before"], 40 + wb + 80, removed_side=False)
-    doc.box(h(spec.get("title", "Design: before → after")), 40, 15, wb + wa + 80, 30, "text;html=1;fontSize=16;fontStyle=1;")
-    legend(doc, 40, 60 + max(hb, ha) + 20, ["A", "M", "D", "K"])
+    pb, pa = plan_side(spec["before"]), plan_side(spec["after"])
+    stacked = pb["w"] + pa["w"] + 80 > 1300                        # too wide side by side: Before above After
+    if stacked:
+        xa, ya, W, H = 40, 60 + pb["h"] + 40, max(pb["w"], pa["w"]), pb["h"] + 40 + pa["h"]
+    else:
+        xa, ya, W, H = 40 + pb["w"] + 80, 60, pb["w"] + pa["w"] + 80, max(pb["h"], pa["h"])
+    draw_side(doc, "Before", pb, pa, 40, 60, removed_side=True)
+    draw_side(doc, "After", pa, pb, xa, ya, removed_side=False)
+    doc.box(h(spec.get("title", "Design: before → after")), 40, 15, W, 30, "text;html=1;fontSize=16;fontStyle=1;")
+    legend(doc, 40, 60 + H + 20, ["A", "M", "D", "K"])
     doc.write(out, "PR design")
 
 
