@@ -1,16 +1,21 @@
-# Polaris
+<h1 align="center">Polaris</h1>
 
-<img src=".github/polaris.png" alt="Star trails circle the night sky. Every star moves except Polaris at the centre. Agent Wayfinder." width="100%">
+<p align="center">Skills for <a href="https://claude.com/claude-code">Claude Code</a>. The agent looks up, finds the star, and follows it.</p>
 
-Every sailor who ever crossed a dark sea knew one thing: find the star that
-does not move, and you will not be lost.
+<p align="center">
+  <img alt="Claude Code skills" src="https://img.shields.io/badge/Claude_Code-skills-6b5bd2">
+  <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits 1.0.0" src="https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196"></a>
+  <img alt="ASD-STE100 Simplified Technical English" src="https://img.shields.io/badge/ASD--STE100-Simplified_Technical_English-2a7f62">
+</p>
 
-Polaris is that star for the agent. These are skills for
-[Claude Code](https://claude.com/claude-code): small folders of instructions
-that tell the agent how to do a job well. When the agent is moving fast, the
-ground shifts, the map runs out, and it is easy to drift. These skills hold
-still. The agent does not need to know the whole route. It only needs to look
-up, find the star, and follow it.
+<p align="center">Every sailor who ever crossed a dark sea knew one thing: find the star that does not move, and you will not be lost.</p>
+
+<p align="center"><img src=".github/polaris.png" alt="Star trails circle the night sky. Every star moves except Polaris at the centre. Agent Wayfinder." width="100%"></p>
+
+Polaris is that star for the agent: small folders of instructions that tell
+it how to do a job well. When the agent is moving fast, the ground shifts, the
+map runs out, and it is easy to drift. These skills hold still. The agent does
+not need to know the whole route. It only needs the star.
 
 Each folder is one skill: a `SKILL.md` with YAML frontmatter and instructions, plus any supporting files.
 
