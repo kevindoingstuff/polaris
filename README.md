@@ -2,7 +2,7 @@
 
 <p align="center">Every sailor who ever crossed a dark sea knew one thing: find the star that does not move, and you will not be lost.</p>
 
-<p align="center"><img src=".github/polaris.png" alt="Star trails circle the night sky. Every star moves except Polaris at the centre. Agent Wayfinder." width="100%"></p>
+<p align="center"><img src=".github/polaris.png" alt="Star trails circle the night sky. Every star moves except Polaris at the centre." width="100%"></p>
 
 Polaris is that star for the agent: small folders of instructions that tell
 it how to do a job well. When the agent is moving fast, the ground shifts, the
