@@ -1,5 +1,7 @@
 # Polaris
 
+<img src=".github/polaris.png" alt="Star trails circle the night sky. Every star moves except Polaris at the centre. Agent Wayfinder." width="100%">
+
 Every sailor who ever crossed a dark sea knew one thing: find the star that
 does not move, and you will not be lost.
 
