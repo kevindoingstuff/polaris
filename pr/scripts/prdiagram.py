@@ -29,9 +29,10 @@
       Puts the files into the PR body. GitHub has no API for the drag-and-drop
       upload, so the files are committed to an orphan branch (default pr-assets,
       created on first use, never merged) under pr-<number>/ and pushed. Prints one
-      `![name](https://raw.githubusercontent.com/<owner>/<repo>/<sha>/...)` line per
-      file to paste into the body. Uses a temporary index: the working tree and the
-      current branch are untouched. Needs a github.com remote.
+      `![name](https://github.com/<owner>/<repo>/blob/<sha>/...?raw=true)` line per
+      file to paste into the body (renders in private repos too). Uses a temporary
+      index: the working tree and the current branch are untouched. Needs a
+      github.com remote.
 
 Exit status 0 on success; 2 with a one-line message on bad input (unknown git
 range, malformed spec, missing -o, no github.com remote).
@@ -339,7 +340,9 @@ def attach(repo, pr, files, branch="pr-assets", remote="origin"):
     g("push", "-q", remote, f"{commit}:refs/heads/{branch}")
     for f in files:
         base = os.path.basename(f)
-        print(f"![{base.split('.')[0]}](https://raw.githubusercontent.com/{owner}/{name}/{commit}/pr-{pr}/{base})")
+        # blob?raw=true, not raw.githubusercontent.com: GitHub's image proxy fetches anonymously, so raw URLs 404 in a
+        # private repo; github.com URLs are not proxied and the browser follows the redirect with the viewer's session.
+        print(f"![{base.split('.')[0]}](https://github.com/{owner}/{name}/blob/{commit}/pr-{pr}/{base}?raw=true)")
 
 
 # ---------------------------------------------------------------- export
