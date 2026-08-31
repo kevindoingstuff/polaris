@@ -1,9 +1,15 @@
 """Diagrams for a pull request. Python 3.8+, stdlib only; draw.io desktop is optional (PNG export).
 
   prdiagram.py changes <repo> <base> <head> [-o pr-changes.drawio] [--png]
+                       [--groups pr-summary.json] [--collapse N]
       Prints the change graph (one block per commit, one line per file:
       Added / Changed / Removed / Renamed). With -o, also writes a diagram:
       commits on the left, changed files on the right boxed by directory.
+      Large PR: --groups takes the summary spec below (the "groups" form); the
+      left column becomes one box per theme and the printed graph becomes one
+      <details> block per theme (Markdown, paste as is). Every commit in the
+      range must be in exactly one group. --collapse N turns a directory with
+      more than N changed files into one box with counts.
 
   prdiagram.py summary <spec.json> -o pr-summary.drawio [--png]
       "This PR: these changes" at a glance. PR title on top, commits left to
@@ -12,6 +18,9 @@
         {"title": "Limit each client to 100 requests per minute",
          "commits": [{"sha": "5c4f747", "subject": "feat(api): add token-bucket rate limiter",
                       "changes": ["Add rate limiter", "Add RATE_LIMIT setting"]}, ...]}
+      Large PR (more than ~8 commits): one column per theme instead:
+        {"title": "...", "groups": [{"title": "Rate limiter", "commits": ["5c4f747", "07c412a"],
+                                     "changes": ["Add token-bucket limiter", ...]}, ...]}
 
   prdiagram.py design <spec.json> -o pr-design.drawio [--png]
       Before/after component diagram from a spec you write:
@@ -130,7 +139,12 @@ def git_changes(repo, base, head):
     return commits, files
 
 
-def print_changes(commits):
+def fold(cur, st):
+    """Combine two statuses of one file (or one directory) in order: a new or renamed file that is then edited stays A / R."""
+    return cur if (st == "M" and cur in ("A", "R")) else st
+
+
+def print_commits(commits):
     for c in commits:
         print(f"{c['sha']} {c['msg']}")
         for i, (st, path, old) in enumerate(c["changes"]):
@@ -139,50 +153,126 @@ def print_changes(commits):
             print(f"{tee} {WORD[st]:<8} {what}")
 
 
-def changes_diagram(commits, files, base, head, out):
+def print_grouped(commits, groups, gi):
+    """Markdown: one <details> block per theme, the per-commit graph inside."""
+    for k, g in enumerate(groups):
+        idx = [i for i in range(len(commits)) if gi[i] == k]
+        nfiles = len({p for i in idx for _, p, _ in commits[i]["changes"]})
+        print(f"<details><summary><b>{g.get('title', f'Theme {k + 1}')}</b> — {len(idx)} commit{'s' if len(idx) != 1 else ''}, {nfiles} file{'s' if nfiles != 1 else ''}</summary>\n\n```")
+        print_commits([commits[i] for i in idx])
+        print("```\n</details>\n")
+
+
+def resolve_groups(commits, spec):
+    """Map commit index -> group index. Every commit in the range lands in exactly one group, or we fail with the list."""
+    groups = spec.get("groups")
+    if not isinstance(groups, list) or not groups:
+        fail('the groups file needs a non-empty "groups" list ({"groups": [{"title", "commits": [shas], "changes": [...]}]})')
+    gi = {}
+    for k, g in enumerate(groups):
+        for sha in g.get("commits") or []:
+            sha = str(sha)
+            hits = [i for i, c in enumerate(commits) if c["sha"].startswith(sha) or sha.startswith(c["sha"])]
+            if not hits:
+                fail(f'group "{g.get("title")}": commit {sha} is not in the range')
+            for i in hits:
+                if gi.get(i, k) != k:
+                    fail(f"commit {commits[i]['sha']} is in two groups")
+                gi[i] = k
+    missing = [c["sha"] for i, c in enumerate(commits) if i not in gi]
+    if missing:
+        fail(f"commits in no group: {' '.join(missing)}")
+    return groups, gi
+
+
+def changes_diagram(commits, files, base, head, out, groups=None, gi=None, collapse=None):
+    """Left: one box per commit, or per theme when groups are given. Right: changed files boxed by directory;
+    a directory with more than `collapse` files becomes one box with counts."""
     doc = Doc()
     CX, CW, CH, CGAP = 40, 280, 70, 50
-    DX, DW, FH, FGAP, HDR, PAD = 520, 320, 40, 12, 30, 12
-    cid = {}
-    for i, c in enumerate(commits):
+    DW, FH, FGAP, HDR, PAD = 320, 40, 12, 30, 12
+    src_of = (lambda ci: gi[ci]) if groups else (lambda ci: ci)
+    n_src = len(groups) if groups else len(commits)
+    DX = CX + CW + 40 + n_src * 40 + 40                                 # the file column starts after the last lane
+
+    # items: one per file, or one per collapsed directory; touches aggregated per source (commit or theme)
+    items = OrderedDict()
+    for p, f in files.items():
+        d = p.rsplit("/", 1)[0] if "/" in p else "(root)"
+        name = p.rsplit("/", 1)[-1]
+        label = f"{f['old'].rsplit('/', 1)[-1]} → {name}" if f["status"] == "R" and f["old"] else name
+        items[p] = {"dir": d, "label": label, "status": f["status"], "touches": OrderedDict(), "first": f["touches"][0][0]}
+        for ci, st in f["touches"]:
+            s = src_of(ci)
+            items[p]["touches"][s] = fold(items[p]["touches"].get(s, st), st)
+    if collapse:
+        by_dir = OrderedDict()
+        for p, it in items.items():
+            by_dir.setdefault(it["dir"], []).append(it)
+        for d, its in by_dir.items():
+            if len(its) > collapse:
+                counts = OrderedDict((k, sum(1 for it in its if it["status"] == k)) for k in "AMDR")
+                touches = OrderedDict()
+                for it in its:
+                    for s, st in it["touches"].items():
+                        touches[s] = fold(touches.get(s, st), st)
+                for p in [p for p, it in items.items() if it["dir"] == d]:
+                    del items[p]
+                items[f"{d}/*"] = {"dir": d, "label": f"{len(its)} files · " + " · ".join(f"{n} {WORD[k].lower()}" for k, n in counts.items() if n),
+                                   "status": "K", "touches": touches, "first": min(it["first"] for it in its)}
+
+    # sources
+    sid = {}
+    for i in range(n_src):
         y = 60 + i * (CH + CGAP)
-        cid[i] = doc.box(f"&lt;b&gt;{h(c['sha'])}&lt;/b&gt;&#xa;{h(c['msg'])}", CX, y, CW, CH,
-                         "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;")
+        if groups:
+            g = groups[i]
+            n = sum(1 for v in gi.values() if v == i)
+            label = f"&lt;b&gt;{h(g.get('title', f'Theme {i + 1}'))}&lt;/b&gt;&#xa;{n} commit{'s' if n != 1 else ''}"
+        else:
+            label = f"&lt;b&gt;{h(commits[i]['sha'])}&lt;/b&gt;&#xa;{h(commits[i]['msg'])}"
+        sid[i] = doc.box(label, CX, y, CW, CH, "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;")
         if i:
-            doc.edge(cid[i - 1], cid[i], "strokeColor=#6c8ebf;")
+            doc.edge(sid[i - 1], sid[i], "strokeColor=#6c8ebf;")
     doc.box(f"base: {h(base)}", CX, 20, CW, 30, "text;html=1;align=center;fontStyle=2;fontColor=#666666;")
 
+    # directories, ordered by the first source that touches them
     dirs = OrderedDict()
-    for path in files:
-        dirs.setdefault(path.rsplit("/", 1)[0] if "/" in path else "(root)", []).append(path)
-    dirs = OrderedDict(sorted(dirs.items(), key=lambda kv: min(files[p]["touches"][0][0] for p in kv[1])))
+    for key, it in items.items():
+        dirs.setdefault(it["dir"], []).append(key)
+    dirs = OrderedDict(sorted(dirs.items(), key=lambda kv: min(items[k]["first"] for k in kv[1])))
 
-    fid, fy, y = {}, {}, 60
-    for d, paths in dirs.items():
-        hgt = HDR + PAD + len(paths) * (FH + FGAP)
+    def box_h(it):                                                     # a box grows with the sources that point at it
+        return FH + max(0, len(it["touches"]) - 2) * 16
+
+    fid, fy, fh, y = {}, {}, {}, 60
+    for d, keys in dirs.items():
+        hgt = HDR + PAD + sum(box_h(items[k]) + FGAP for k in keys)
         box = doc.box(h(d) + "/", DX, y, DW, hgt, f"swimlane;startSize={HDR};html=1;fontStyle=1;fillColor=#f5f5f5;strokeColor=#666666;pointerEvents=0;")
-        for j, p in enumerate(paths):
-            f = files[p]
-            fill, stroke = COL[f["status"]]
-            name = p.rsplit("/", 1)[-1]
-            label = f"{f['old'].rsplit('/', 1)[-1]} → {name}" if f["status"] == "R" and f["old"] else name
-            fy[p] = y + HDR + PAD // 2 + j * (FH + FGAP) + FH // 2
-            fid[p] = doc.box(h(label), PAD, HDR + PAD // 2 + j * (FH + FGAP), DW - 2 * PAD, FH,
-                             f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};fontFamily=Courier New;", parent=box)
+        yy = HDR + PAD // 2
+        for key in keys:
+            it = items[key]
+            fill, stroke = COL[it["status"]]
+            fh[key] = box_h(it)
+            fy[key] = y + yy + fh[key] // 2
+            fid[key] = doc.box(h(it["label"]), PAD, yy, DW - 2 * PAD, fh[key],
+                               f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};fontFamily=Courier New;", parent=box)
+            yy += fh[key] + FGAP
         y += hgt + 30
 
-    for p, f in files.items():
-        n = len(f["touches"])
-        for k, (ci, st) in enumerate(f["touches"]):
+    for key, it in items.items():
+        n = len(it["touches"])
+        for k, (s, st) in enumerate(it["touches"].items()):
             _, stroke = COL[st]
             dash = "dashed=1;" if st == "D" else ""
-            ey = 0.5 if n == 1 else 0.3 + 0.4 * k / (n - 1)  # several commits on one file: spread the entry points
-            doc.edge(cid[ci], fid[p], f"strokeColor={stroke};fontColor={stroke};fontStyle=1;{dash}exitX=1;exitY=0.5;entryX=0;entryY={ey};labelBackgroundColor=#ffffff;",
-                     label=st, points=[(CX + CW + 40 + ci * 40, round(fy[p] + (ey - 0.5) * FH))], label_at_end=True)
+            ey = 0.5 if n == 1 else 0.2 + 0.6 * k / (n - 1)  # several sources on one box: spread the entry points
+            doc.edge(sid[s], fid[key], f"strokeColor={stroke};fontColor={stroke};fontStyle=1;{dash}exitX=1;exitY=0.5;entryX=0;entryY={ey};labelBackgroundColor=#ffffff;",
+                     label=st, points=[(CX + CW + 40 + s * 40, round(fy[key] + (ey - 0.5) * fh[key]))], label_at_end=True)
 
-    ly = max(y, 60 + len(commits) * (CH + CGAP)) + 10
-    legend(doc, CX, ly, ["A", "M", "D", "R"])
-    doc.box(f"PR {h(base)}..{h(head)} — {len(commits)} commits, {len(files)} files", DX, 15, DW + 200, 30, "text;html=1;fontSize=16;fontStyle=1;")
+    ly = max(y, 60 + n_src * (CH + CGAP)) + 10
+    legend(doc, CX, ly, ["A", "M", "D", "R"] + (["K"] if collapse else []))
+    what = f"{len(groups)} themes, " if groups else ""
+    doc.box(f"PR {h(base)}..{h(head)} — {what}{len(commits)} commits, {len(files)} files", DX, 15, DW + 200, 30, "text;html=1;fontSize=16;fontStyle=1;")
     doc.write(out, "PR changes")
 
 
@@ -273,9 +363,10 @@ def design_diagram(spec, out):
 # ---------------------------------------------------------------- summary
 def summary_diagram(spec, out):
     """PR title on top, commits left to right, each commit's main changes as chips below it."""
-    commits = spec.get("commits")
+    grouped = "groups" in spec
+    commits = spec.get("groups") if grouped else spec.get("commits")
     if not isinstance(commits, list) or not commits:
-        fail('spec needs a non-empty "commits" list')
+        fail('spec needs a non-empty "commits" list (or "groups" for a large PR)')
     doc = Doc()
     CW, GAP, CH, CHIP, CGAP, X0, Y0 = 240, 40, 64, 34, 8, 40, 100
     total_w = max(len(commits) * CW + (len(commits) - 1) * GAP, 4 * 130 - 20)   # at least the legend's width
@@ -284,9 +375,15 @@ def summary_diagram(spec, out):
     prev, bottom = None, Y0 + CH
     for i, c in enumerate(commits):
         if not isinstance(c, dict):
-            fail(f"every commit is an object (got {c!r})")
+            fail(f"every {'group' if grouped else 'commit'} is an object (got {c!r})")
         x = X0 + i * (CW + GAP)
-        cid = doc.box(f"&lt;b&gt;{h(c.get('sha', ''))}&lt;/b&gt;&#xa;{h(c.get('subject', ''))}", x, Y0, CW, CH,
+        if grouped:
+            shas = [str(s) for s in (c.get("commits") or [])]
+            rng = shas[0] if len(shas) == 1 else f"{shas[0]}..{shas[-1]}" if shas else ""
+            label = f"&lt;b&gt;{h(c.get('title', f'Theme {i + 1}'))}&lt;/b&gt;&#xa;{len(shas)} commit{'s' if len(shas) != 1 else ''} · {h(rng)}"
+        else:
+            label = f"&lt;b&gt;{h(c.get('sha', ''))}&lt;/b&gt;&#xa;{h(c.get('subject', ''))}"
+        cid = doc.box(label, x, Y0, CW, CH,
                       "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;fontSize=11;")
         if prev:
             doc.edge(prev, cid, "strokeColor=#6c8ebf;exitX=1;exitY=0.5;entryX=0;entryY=0.5;")
@@ -401,7 +498,7 @@ def main(argv):
         sys.stdout.reconfigure(encoding="utf-8")  # box-drawing chars on a cp1252 console
     png = "--png" in argv
     argv = [a for a in argv if a != "--png"]
-    opts = {"-o": None, "--branch": "pr-assets", "--remote": "origin"}
+    opts = {"-o": None, "--branch": "pr-assets", "--remote": "origin", "--groups": None, "--collapse": None}
     for flag in list(opts):
         if flag in argv:
             i = argv.index(flag)
@@ -420,9 +517,20 @@ def main(argv):
         if len(argv) != 4:
             fail("usage: changes <repo> <base> <head> [-o out.drawio] [--png]")
         commits, files = git_changes(argv[1], argv[2], argv[3])
-        print_changes(commits)
+        groups = gi = None
+        if opts["--groups"]:
+            groups, gi = resolve_groups(commits, load_spec(opts["--groups"]))
+        collapse = None
+        if opts["--collapse"] is not None:
+            if not re.fullmatch(r"\d+", opts["--collapse"]) or int(opts["--collapse"]) < 1:
+                fail("--collapse needs a positive number of files")
+            collapse = int(opts["--collapse"])
+        if groups:
+            print_grouped(commits, groups, gi)
+        else:
+            print_commits(commits)
         if out:
-            changes_diagram(commits, files, argv[2], argv[3], out)
+            changes_diagram(commits, files, argv[2], argv[3], out, groups, gi, collapse)
     elif cmd in ("design", "summary"):
         if len(argv) != 2 or not out:
             fail(f"usage: {cmd} <spec.json> -o out.drawio [--png]")
