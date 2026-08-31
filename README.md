@@ -105,7 +105,7 @@ It also draws the change with `scripts/prdiagram.py` (Python 3.8+, no packages):
 
 - **Design** — a before/after component diagram, only when the PR adds, removes, or rewires a component.
 
-The diagrams are `.drawio` files. When [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed, the skill also exports `.drawio.png` files (editable in draw.io) and tells you their paths; drag them into the PR at the `<!-- attach ... -->` comments. Without draw.io you get the `.drawio` files only.
+The diagrams are `.drawio` files. When [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed, the skill also exports `.drawio.png` files (editable in draw.io), commits them to an orphan `pr-assets` branch on your remote (`pr-<number>/…`, created on first use, never merged), and puts them in the PR body as images. Without draw.io you get the `.drawio` files only and the body keeps `<!-- attach ... -->` markers.
 
 ## Update
 

@@ -25,14 +25,24 @@
          (drawio / draw.io on PATH, or the default Windows / macOS install).
          Not found, or the export fails: prints a notice and leaves the .drawio only.
 
+  prdiagram.py attach <repo> <pr-number> <file>... [--branch pr-assets] [--remote origin]
+      Puts the files into the PR body. GitHub has no API for the drag-and-drop
+      upload, so the files are committed to an orphan branch (default pr-assets,
+      created on first use, never merged) under pr-<number>/ and pushed. Prints one
+      `![name](https://raw.githubusercontent.com/<owner>/<repo>/<sha>/...)` line per
+      file to paste into the body. Uses a temporary index: the working tree and the
+      current branch are untouched. Needs a github.com remote.
+
 Exit status 0 on success; 2 with a one-line message on bad input (unknown git
-range, malformed spec, missing -o).
+range, malformed spec, missing -o, no github.com remote).
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections import OrderedDict
 from xml.sax.saxutils import escape
 
@@ -267,7 +277,7 @@ def summary_diagram(spec, out):
         fail('spec needs a non-empty "commits" list')
     doc = Doc()
     CW, GAP, CH, CHIP, CGAP, X0, Y0 = 240, 40, 64, 34, 8, 40, 100
-    total_w = len(commits) * CW + (len(commits) - 1) * GAP
+    total_w = max(len(commits) * CW + (len(commits) - 1) * GAP, 4 * 130 - 20)   # at least the legend's width
     doc.box(h(spec.get("title", "")), X0, 20, total_w, 50,
             "rounded=1;whiteSpace=wrap;html=1;fontSize=16;fontStyle=1;fillColor=#1f2430;fontColor=#ffffff;strokeColor=none;")
     prev, bottom = None, Y0 + CH
@@ -288,6 +298,48 @@ def summary_diagram(spec, out):
             bottom = max(bottom, y + CHIP)
     legend(doc, X0, bottom + 30, ["A", "M", "F", "D"])
     doc.write(out, "PR summary")
+
+
+# ---------------------------------------------------------------- attach
+def attach(repo, pr, files, branch="pr-assets", remote="origin"):
+    def g(*args, env=None, ok=True):
+        r = subprocess.run(["git", "-C", repo, *args], capture_output=True, encoding="utf-8", errors="replace", env=env)
+        if ok and r.returncode:
+            fail(f"git {args[0]} failed: {r.stderr.strip().splitlines()[-1] if r.stderr.strip() else r.returncode}")
+        return r.stdout.strip()
+
+    if not re.fullmatch(r"\d+", str(pr)):
+        fail(f"pr-number must be digits (got {pr!r})")
+    for f in files:
+        if not os.path.isfile(f):
+            fail(f"file not found: {f}")
+    url = g("config", "--get", f"remote.{remote}.url")      # the configured URL, before any url.insteadOf rewrite
+    m = re.search(r"github\.com[:/]([^/\s]+)/([^/\s]+?)(?:\.git)?/?$", url)
+    if not m:
+        fail(f"remote {remote} is not a github.com URL: {url}")
+    owner, name = m.groups()
+
+    g("fetch", "-q", remote, branch, ok=False)                                  # absent on first use
+    parent = g("rev-parse", "--verify", "-q", f"refs/remotes/{remote}/{branch}", ok=False) or None
+    fd, idx = tempfile.mkstemp(prefix="prdiagram-index-")
+    os.close(fd)
+    os.remove(idx)
+    env = dict(os.environ, GIT_INDEX_FILE=idx)
+    try:
+        if parent:
+            g("read-tree", parent, env=env)
+        for f in files:
+            blob = g("hash-object", "-w", "--", os.path.abspath(f))
+            g("update-index", "--add", "--cacheinfo", f"100644,{blob},pr-{pr}/{os.path.basename(f)}", env=env)
+        tree = g("write-tree", env=env)
+    finally:
+        if os.path.exists(idx):
+            os.remove(idx)
+    commit = g("commit-tree", tree, "-m", f"pr-{pr}: diagrams", *(["-p", parent] if parent else []))
+    g("push", "-q", remote, f"{commit}:refs/heads/{branch}")
+    for f in files:
+        base = os.path.basename(f)
+        print(f"![{base.split('.')[0]}](https://raw.githubusercontent.com/{owner}/{name}/{commit}/pr-{pr}/{base})")
 
 
 # ---------------------------------------------------------------- export
@@ -346,14 +398,21 @@ def main(argv):
         sys.stdout.reconfigure(encoding="utf-8")  # box-drawing chars on a cp1252 console
     png = "--png" in argv
     argv = [a for a in argv if a != "--png"]
-    out = None
-    if "-o" in argv:
-        i = argv.index("-o")
-        if i + 1 >= len(argv):
-            fail("-o needs a path")
-        out = argv[i + 1]
-        del argv[i:i + 2]
+    opts = {"-o": None, "--branch": "pr-assets", "--remote": "origin"}
+    for flag in list(opts):
+        if flag in argv:
+            i = argv.index(flag)
+            if i + 1 >= len(argv):
+                fail(f"{flag} needs a value")
+            opts[flag] = argv[i + 1]
+            del argv[i:i + 2]
+    out = opts["-o"]
     cmd = argv[0]
+    if cmd == "attach":
+        if len(argv) < 4:
+            fail("usage: attach <repo> <pr-number> <file>... [--branch pr-assets] [--remote origin]")
+        attach(argv[1], argv[2], argv[3:], opts["--branch"], opts["--remote"])
+        return
     if cmd == "changes":
         if len(argv) != 4:
             fail("usage: changes <repo> <base> <head> [-o out.drawio] [--png]")
