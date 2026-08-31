@@ -5,6 +5,7 @@ Skills for [Claude Code](https://claude.com/claude-code). Each folder is one ski
 | Skill | What it does | Invoke |
 |---|---|---|
 | [`commit`](commit/SKILL.md) | Writes the commit message in ASD-STE100 Simplified Technical English with the Conventional Commits format, splits unrelated changes into separate commits, then commits. | `/commit`, or say "commit this" |
+| [`pr`](pr/SKILL.md) | Writes the pull request like a changelog entry in ASD-STE100 STE (context, NOTE callouts, rationale, watch for, issue link), draws the changes (summary, commits → files, before/after design), then opens it with `gh`. | `/pr`, or say "open a PR" |
 
 ## Install
 
@@ -73,6 +74,38 @@ option in seconds. For example, change timeoutMs: 5000 to timeout: 5.
 ```
 
 The author is you. The skill adds no co-author or AI trailer.
+
+### pr
+
+Commit your branch, then:
+
+```
+> open a PR
+```
+
+or
+
+```
+> /pr
+```
+
+The skill reads `git log` and `git diff` against the default branch, finds the issue in the branch name or the commit footers, and writes the PR like a changelog entry: a one-sentence title, `## Context` bullets (Add / Change / Fix / Remove) with `NOTE` callouts for breaking changes and side effects, `## Rationale`, `## Watch for`, and `Closes #<id>` or `Refs #<id>` on the last line. Then it runs `gh pr create`. With no `gh` or no remote it prints the title and body instead.
+
+It also draws the change with `scripts/prdiagram.py` (Python 3.8+, no packages):
+
+- **Summary** — the PR title, the commits left to right, and each commit's main changes as coloured chips.
+- **Changes** — commits on the left, every changed file on the right boxed by directory, with a text version in the body:
+
+  ```
+  7c47d2c feat(api): enforce limiter in handlers, remove legacy shim
+  ├─ Changed  requirements.txt — add redis
+  ├─ Changed  src/api/handlers.py — check the limiter before the query
+  └─ Removed  src/api/legacy.py
+  ```
+
+- **Design** — a before/after component diagram, only when the PR adds, removes, or rewires a component.
+
+The diagrams are `.drawio` files. When [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed, the skill also exports `.drawio.png` files (editable in draw.io) and tells you their paths; drag them into the PR at the `<!-- attach ... -->` comments. Without draw.io you get the `.drawio` files only.
 
 ## Update
 
