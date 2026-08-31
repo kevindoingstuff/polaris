@@ -1,13 +1,5 @@
 <h1 align="center">Polaris</h1>
 
-<p align="center">Skills for <a href="https://claude.com/claude-code">Claude Code</a>. The agent looks up, finds the star, and follows it.</p>
-
-<p align="center">
-  <img alt="Claude Code skills" src="https://img.shields.io/badge/Claude_Code-skills-6b5bd2">
-  <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits 1.0.0" src="https://img.shields.io/badge/Conventional_Commits-1.0.0-fe5196"></a>
-  <img alt="ASD-STE100 Simplified Technical English" src="https://img.shields.io/badge/ASD--STE100-Simplified_Technical_English-2a7f62">
-</p>
-
 <p align="center">Every sailor who ever crossed a dark sea knew one thing: find the star that does not move, and you will not be lost.</p>
 
 <p align="center"><img src=".github/polaris.png" alt="Star trails circle the night sky. Every star moves except Polaris at the centre. Agent Wayfinder." width="100%"></p>
