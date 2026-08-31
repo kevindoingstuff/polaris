@@ -1,13 +1,23 @@
-# polaris skills
+# Polaris
 
-Skills for [Claude Code](https://claude.com/claude-code). Each folder is one skill: a `SKILL.md` with YAML frontmatter and instructions, plus any supporting files.
+Every sailor who ever crossed a dark sea knew one thing: find the star that
+does not move, and you will not be lost.
+
+Polaris is that star for the agent. These are skills for
+[Claude Code](https://claude.com/claude-code): small folders of instructions
+that tell the agent how to do a job well. When the agent is moving fast, the
+ground shifts, the map runs out, and it is easy to drift. These skills hold
+still. The agent does not need to know the whole route. It only needs to look
+up, find the star, and follow it.
+
+Each folder is one skill: a `SKILL.md` with YAML frontmatter and instructions, plus any supporting files.
 
 | Skill | What it does | Invoke |
 |---|---|---|
 | [`commit`](commit/SKILL.md) | Writes the commit message in ASD-STE100 Simplified Technical English with the Conventional Commits format, splits unrelated changes into separate commits, then commits. | `/commit`, or say "commit this" |
 | [`pr`](pr/SKILL.md) | Writes the pull request like a changelog entry in ASD-STE100 STE (context, NOTE callouts, rationale, watch for, issue link), draws the changes (summary of every change per commit or theme, before/after design), then opens it with `gh`. | `/pr`, or say "open a PR" |
 
-## Install
+## How to install the skills
 
 Claude Code loads a skill from `~/.claude/skills/<name>/SKILL.md` (available in every project) or `<project>/.claude/skills/<name>/SKILL.md` (that project only).
 
@@ -43,7 +53,7 @@ cp -r polaris/commit .claude/skills/commit
 
 Restart Claude Code after you install. Type `/` to see the skill in the list.
 
-## Use
+## How to use the skills
 
 ### commit
 
@@ -93,21 +103,21 @@ The skill reads `git log` and `git diff` against the default branch, finds the i
 
 It also draws the change with `scripts/prdiagram.py` (Python 3.8+, no packages):
 
-- **Summary** — the PR title, the commits (or, for a large PR, the themes) left to right, and every change as a coloured chip (Add / Change / Fix / Remove).
-- **Change graph** — text in the body, one block per commit with every file:
+- **Summary**: the PR title, the commits (or, for a large PR, the themes) left to right, and every change as a coloured chip (Add / Change / Fix / Remove).
+- **Change graph**: text in the body, one block per commit with every file:
 
   ```
   7c47d2c feat(api): enforce limiter in handlers, remove legacy shim
-  ├─ Changed  requirements.txt — add redis
-  ├─ Changed  src/api/handlers.py — check the limiter before the query
+  ├─ Changed  requirements.txt - add redis
+  ├─ Changed  src/api/handlers.py - check the limiter before the query
   └─ Removed  src/api/legacy.py
   ```
 
-- **Design** — a before/after component diagram, only when the PR adds, removes, or rewires a component.
+- **Design**: a before/after component diagram, only when the PR adds, removes, or rewires a component.
 
 The diagrams are `.drawio` files. When [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed, the skill also exports `.drawio.png` files (editable in draw.io), commits them to an orphan `pr-assets` branch on your remote (`pr-<number>/…`, created on first use, never merged), and puts them in the PR body as images. Without draw.io you get the `.drawio` files only and the body keeps `<!-- attach ... -->` markers.
 
-## Update
+## How to update the skills
 
 ```bash
 cd ~/polaris-skills && git pull
