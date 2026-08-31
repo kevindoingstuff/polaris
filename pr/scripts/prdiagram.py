@@ -449,11 +449,13 @@ def summary_diagram(spec, out):
             doc.edge(prev, cid, "strokeColor=#6c8ebf;exitX=1;exitY=0.5;entryX=0;entryY=0.5;")
         prev = cid
         chips = [str(ch) for ch in (c.get("changes") or []) if str(ch).strip()]
-        for j, ch in enumerate(chips):
+        y = Y0 + CH + 16
+        for ch in chips:
             fill, stroke = COL[KIND.get(ch.split()[0], "M")]
-            y = Y0 + CH + 16 + j * (CHIP + CGAP)
-            doc.box(h(ch), x, y, CW, CHIP, f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};align=left;spacingLeft=10;fontSize=12;")
-            bottom = max(bottom, y + CHIP)
+            ch_h = CHIP if len(ch) <= 30 else CHIP + 16                    # a long chip wraps to two lines
+            doc.box(h(ch), x, y, CW, ch_h, f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};align=left;spacingLeft=10;fontSize=12;")
+            y += ch_h + CGAP
+            bottom = max(bottom, y - CGAP)
     legend(doc, X0, bottom + 30, ["A", "M", "F", "D"])
     doc.write(out, "PR summary")
 

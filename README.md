@@ -5,7 +5,7 @@ Skills for [Claude Code](https://claude.com/claude-code). Each folder is one ski
 | Skill | What it does | Invoke |
 |---|---|---|
 | [`commit`](commit/SKILL.md) | Writes the commit message in ASD-STE100 Simplified Technical English with the Conventional Commits format, splits unrelated changes into separate commits, then commits. | `/commit`, or say "commit this" |
-| [`pr`](pr/SKILL.md) | Writes the pull request like a changelog entry in ASD-STE100 STE (context, NOTE callouts, rationale, watch for, issue link), draws the changes (summary, commits → files, before/after design), then opens it with `gh`. | `/pr`, or say "open a PR" |
+| [`pr`](pr/SKILL.md) | Writes the pull request like a changelog entry in ASD-STE100 STE (context, NOTE callouts, rationale, watch for, issue link), draws the changes (summary of every change per commit or theme, before/after design), then opens it with `gh`. | `/pr`, or say "open a PR" |
 
 ## Install
 
@@ -93,8 +93,8 @@ The skill reads `git log` and `git diff` against the default branch, finds the i
 
 It also draws the change with `scripts/prdiagram.py` (Python 3.8+, no packages):
 
-- **Summary** — the PR title, the commits left to right, and each commit's main changes as coloured chips.
-- **Changes** — commits on the left, every changed file on the right boxed by directory, with a text version in the body:
+- **Summary** — the PR title, the commits (or, for a large PR, the themes) left to right, and every change as a coloured chip (Add / Change / Fix / Remove).
+- **Change graph** — text in the body, one block per commit with every file:
 
   ```
   7c47d2c feat(api): enforce limiter in handlers, remove legacy shim
