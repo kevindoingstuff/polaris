@@ -15,6 +15,7 @@ Each folder is one skill: a `SKILL.md` with YAML frontmatter and instructions, p
 |---|---|---|
 | [`commit`](commit/SKILL.md) | Writes the commit message in ASD-STE100 Simplified Technical English with the Conventional Commits format, splits unrelated changes into separate commits, then commits. | `/commit`, or say "commit this" |
 | [`pr`](pr/SKILL.md) | Writes the pull request like a changelog entry in ASD-STE100 STE (context, NOTE callouts, rationale, watch for, issue link), draws the changes (summary of every change per commit or theme, before/after design), then opens it with `gh`. | `/pr`, or say "open a PR" |
+| [`docs`](docs/SKILL.md) | Reads the code and the design docs that exist, then writes `docs/<module>.md` per module: per-component sections, draw.io diagrams (system map, components, flows, sequences), drift questions when a design doc and the code disagree, and `docs/README.md` as the index. | `/docs`, or say "document this codebase" |
 
 ## How to install the skills
 
@@ -115,6 +116,19 @@ It also draws the change with `scripts/prdiagram.py` (Python 3.8+, no packages):
 - **Design**: a before/after component diagram, only when the PR adds, removes, or rewires a component.
 
 The diagrams are `.drawio` files. When [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed, the skill also exports `.drawio.png` files (editable in draw.io), commits them to an orphan `pr-assets` branch on your remote (`pr-<number>/…`, created on first use, never merged), and puts them in the PR body as images. Without draw.io you get the `.drawio` files only and the body keeps `<!-- attach ... -->` markers.
+
+
+### docs
+
+From the repo you want documented:
+
+```
+> /docs
+```
+
+Pick the modules from the picker, or target them with `/docs api worker`. The skill surveys the repo, reads the design docs and the code, asks one question per documented claim the code contradicts, then writes `docs/<module>.md` per module: a system map with the module highlighted, a component overview, one section per component (inputs and outputs, configuration, things to note, a sub-diagram when the component earns one), and a cited data flow. Diagrams land under `docs/diagrams/` as `.drawio` files, with `.drawio.png` exports when [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed.
+
+`/docs update` regenerates only the modules whose code changed since the stamp in each doc; `<!-- keep -->` blocks in a doc survive regeneration. Every fact in a doc carries a `path:line` citation; a fact with no source stays out.
 
 ## How to update the skills
 

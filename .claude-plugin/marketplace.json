@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "polaris",
+  "description": "Skills that write in ASD-STE100 Simplified Technical English: commits, pull requests, and more.",
+  "owner": {
+    "name": "kevindoingstuff",
+    "url": "https://github.com/kevindoingstuff"
+  },
+  "plugins": [
+    {
+      "name": "polaris",
+      "source": "./",
+      "description": "Commit and pull request skills. Conventional Commits, changelog-style PRs, all in Simplified Technical English.",
+      "category": "productivity",
+      "keywords": ["commit", "pull-request", "conventional-commits", "ste", "simplified-technical-english"]
+    }
+  ]
+}
