@@ -101,8 +101,6 @@ A component inside a module earns its own diagram only when it has three or more
 
 0: wrote the `.drawio` (and the `.png` when draw.io was found; otherwise one notice on stderr, still 0). 2 with one line on stderr: unknown command, missing `-o`, spec missing or invalid JSON, empty nodes, participants, or messages, duplicate id, an edge, message, or `--highlight` that names an unknown id, unknown `kind`. A traceback is a bug.
 
-## Two engines
+## Size
 
-The survey picks the engine. Graphviz (`dot -V`) and the `drawio-skill` plugin (365-skills) both present: the skill calls `drawio-skill`, whose extractors read the imports directly and whose `autolayout.py` handles any size. Otherwise: the script here, which needs Python and draw.io desktop only. The script keeps up to about 15 nodes readable: ports spread along each box, one lane per jog, labels placed clear of boxes, lines, and each other. Past that, split the spec, or install Graphviz and the plugin.
-
-Either engine may add an ERD or a C4 set into the same folder. The charts above are the contract.
+The script needs Python and draw.io desktop only, and keeps up to about 15 nodes readable: ports spread along each box, one lane per jog, labels placed clear of boxes, lines, and each other. Past that, split the spec.
