@@ -1,7 +1,7 @@
 ﻿{
   "name": "polaris",
-  "version": "0.2.0",
-  "description": "Commit, pull request, and documentation skills. Conventional Commits, changelog-style PRs, module docs with draw.io diagrams, in ASD-STE100 Simplified Technical English.",
+  "version": "0.3.0",
+  "description": "Commit, pull request, and documentation skills. Conventional Commits, changelog-style PRs, module user guides with draw.io diagrams and a Sphinx site, in ASD-STE100 Simplified Technical English.",
   "author": {
     "name": "kevindoingstuff",
     "url": "https://github.com/kevindoingstuff"

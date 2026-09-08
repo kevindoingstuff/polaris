@@ -15,7 +15,7 @@ Each folder is one skill: a `SKILL.md` with YAML frontmatter and instructions, p
 |---|---|---|
 | [`commit`](commit/SKILL.md) | Writes the commit message in ASD-STE100 Simplified Technical English with the Conventional Commits format, splits unrelated changes into separate commits, then commits. | `/commit`, or say "commit this" |
 | [`pr`](pr/SKILL.md) | Writes the pull request like a changelog entry in ASD-STE100 STE (context, NOTE callouts, rationale, watch for, issue link), draws the changes (summary of every change per commit or theme, before/after design), then opens it with `gh`. | `/pr`, or say "open a PR" |
-| [`docs`](docs/SKILL.md) | Reads the code and the design docs that exist, then writes `docs/<module>.md` per module: per-component sections, draw.io diagrams (system map, components, flows, sequences), drift questions when a design doc and the code disagree, and `docs/README.md` as the index. | `/docs`, or say "document this codebase" |
+| [`docs`](docs/SKILL.md) | Reads the code and the design docs that exist, then writes a user guide per module (`docs/<module>.md`): stages, inputs and outputs, quickstart, per-component sections, draw.io diagrams (system map, components, flows, sequences), and drift questions when a design doc and the code disagree. Python repos get a Sphinx (MyST) site; other repos get `docs/README.md` as the index. | `/docs`, or say "document this codebase" |
 
 ## How to install the skills
 
@@ -126,7 +126,9 @@ From the repo you want documented:
 > /docs
 ```
 
-Pick the modules from the picker, or target them with `/docs api worker`. The skill surveys the repo, reads the design docs and the code, asks one question per documented claim the code contradicts, then writes `docs/<module>.md` per module: a system map with the module highlighted, a component overview, one section per component (inputs and outputs, configuration, things to note, a sub-diagram when the component earns one), and a cited data flow. Diagrams land under `docs/diagrams/` as `.drawio` files, with `.drawio.png` exports when [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed.
+Pick the modules from the picker, or target them with `/docs api worker`. The skill surveys the repo, offers to write a `get_started.md` from two questions, reads the design docs and the code, asks one question per documented claim the code contradicts, then writes `docs/<module>.md` per module. Each doc reads as a user guide first (an overview with the stages, the inputs and outputs with schema tables, the folder structure, a quickstart with its configuration table) and a cited reference last (one section per component with inputs and outputs, configuration, and the notes it earns, a data flow, and the drift answers).
+
+A Python repo runs in Sphinx mode: MyST markdown, `docs/index.md` as the index, a scaffolded `conf.py` and `reference/api.rst` when the repo has none, diagrams under `docs/_static/diagrams/`. Any other repo runs in plain mode: `docs/README.md` as the index, diagrams under `docs/diagrams/`. Diagrams are `.drawio` files, with `.drawio.png` exports when [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed.
 
 `/docs update` regenerates only the modules whose code changed since the stamp in each doc; `<!-- keep -->` blocks in a doc survive regeneration. Every fact in a doc carries a `path:line` citation; a fact with no source stays out.
 

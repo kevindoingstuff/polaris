@@ -7,16 +7,21 @@
         {"title": "shopling",
          "nodes": [{"id": "api", "label": "API"}, {"id": "db", "label": "Postgres", "external": true}],
          "edges": [["api", "db"], {"from": "api", "to": "auth", "label": "verify token", "kind": "call"}]}
-      "external": true draws a dashed box. An edge is [from, to] or
+      A node may carry "kind" (process, the default; data: a cylinder; config: a
+      note; model: a hexagon), "role" (input, intermediate, output: the colour of
+      a data node), "group" (nodes with the same group sit inside one dashed
+      container labelled with it), "note" (small italic text under the node) and
+      "external": true (a dashed outline). An edge is [from, to] or
       {"from", "to", "label"?, "kind"?}; kind is call (solid, the default),
       data (dashed), or event (dotted, open arrow).
 
   docsdiagram.py components <spec.json> -o <out.drawio> [--png]
-      The parts inside one module. Same spec shape and layout as system.
+      The parts inside one module, left to right in flow order: process boxes
+      with the data cylinders they read and write between them. Same spec shape.
 
   docsdiagram.py flow       <spec.json> -o <out.drawio> [--png]
-      One order-dominated component or pipeline: stages left to right, branches
-      and merges as extra edges. Same spec shape as system.
+      One component or pipeline: its stages left to right, branches and merges
+      as extra edges. Same spec shape and layout as components.
 
   docsdiagram.py sequence   <spec.json> -o <out.drawio> [--png]
       One flow: participants left to right, messages top to bottom.
@@ -43,8 +48,13 @@ import sys
 from collections import OrderedDict
 from xml.sax.saxutils import escape
 
-COL = {"K": ("#f5f5f5", "#666666"), "H": ("#fff2cc", "#d6b656")}
-NAMES = {"K": "module", "H": "this module"}
+COL = {"K": ("#ffffff", "#333333"), "H": ("#fff2cc", "#d6b656"), "G": ("#ffe6cc", "#d79b00"),
+       "input": ("#b0e3e6", "#0e8088"), "intermediate": ("#d0cee2", "#56517e"), "output": ("#f8cecc", "#b85450")}
+NAMES = {"K": "module", "H": "this module", "input": "Input data", "intermediate": "Intermediate data", "output": "Output data"}
+SHAPE = {"process": "rounded=1;", "data": "shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=12;",
+         "config": "shape=note;backgroundOutline=1;darkOpacity=0.05;size=14;",
+         "model": "shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;"}
+ROLES = ("input", "intermediate", "output")
 EDGE_KIND = {"call": "", "data": "dashed=1;", "event": "dashed=1;dashPattern=1 3;endArrow=open;"}
 MSG_KIND = {"call": "", "return": "dashed=1;endArrow=open;", "async": "endArrow=open;"}
 
@@ -99,6 +109,37 @@ NW, NH, XS, YS, SHDR, SPAD = 150, 50, 210, 150, 34, 24   # node, column pitch, r
 LABEL_H, CHAR_W, LANE = 16, 6.4, 22
 
 
+def node_style(n, highlight=None):
+    """Shape by kind, colour by role (data), by group (process), or by highlight; dashed when external."""
+    kind, role = n.get("kind", "process"), n.get("role")
+    if str(n["id"]) == highlight:
+        fill, stroke = COL["H"]
+    elif kind == "config":
+        fill, stroke = COL["G"]
+    elif role:
+        fill, stroke = COL[role]
+    elif kind == "process" and n.get("group"):
+        fill, stroke = COL["G"]
+    else:
+        fill, stroke = COL["K"]
+    extra = "strokeWidth=3;fontStyle=1;" if str(n["id"]) == highlight else ""
+    extra += "dashed=1;" if n.get("external") else ""
+    return f"{SHAPE[kind]}whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};{extra}"
+
+
+def role_legend(doc, x, y, spec):
+    """A boxed legend of the data roles the spec uses, like a hand-drawn chart's key. Returns its height."""
+    roles = [r for r in ROLES if any(n.get("role") == r for n in spec["nodes"])]
+    if not roles:
+        return 0
+    hgt = 36 + len(roles) * 52
+    box = doc.box("Legend", x, y, 150, hgt, "swimlane;startSize=28;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#000000;pointerEvents=0;")
+    for k, r in enumerate(roles):
+        fill, stroke = COL[r]
+        doc.box(NAMES[r], 20, 34 + k * 52, 110, 44, f"{SHAPE['data']}whiteSpace=wrap;html=1;fontSize=11;fillColor={fill};strokeColor={stroke};", parent=box)
+    return hgt
+
+
 def norm_edge(e):
     if isinstance(e, list) and len(e) == 2:
         return str(e[0]), str(e[1]), "", "call"
@@ -117,6 +158,10 @@ def check_graph(spec):
         if not isinstance(n, dict) or "id" not in n:
             fail(f'every node needs an "id" (got {n!r})')
         ids.append(str(n["id"]))
+        if n.get("kind", "process") not in SHAPE:
+            fail(f'node {n["id"]}: unknown kind "{n["kind"]}" (process, data, config, model)')
+        if n.get("role") is not None and n["role"] not in ROLES:
+            fail(f'node {n["id"]}: unknown role "{n["role"]}" (input, intermediate, output)')
     if len(set(ids)) != len(ids):
         fail("duplicate node id")
     edges = [norm_edge(e) for e in spec.get("edges") or []]
@@ -149,6 +194,7 @@ def plan_graph(spec, pairs):
     node sits under its parents. Returns node positions relative to the container plus its size."""
     nodes = [str(n["id"]) for n in spec["nodes"]]
     labels = {str(n["id"]): str(n.get("label", n["id"])) for n in spec["nodes"]}
+    byid = {str(n["id"]): n for n in spec["nodes"]}
     rk = ranks(nodes, pairs)
     rows = OrderedDict((r, [n for n in nodes if rk[n] == r]) for r in sorted(set(rk.values())))
     cols = max(len(r) for r in rows.values())
@@ -173,7 +219,7 @@ def plan_graph(spec, pairs):
     rel = {n: (SPAD + pos[n], SHDR + SPAD + rk[n] * YS) for n in nodes}          # top-left, container-relative
     w = SPAD * 2 + cols * XS - (XS - NW)
     hgt = SHDR + SPAD + len(rows) * YS - (YS - NH) + SPAD
-    return {"nodes": nodes, "labels": labels, "rk": rk, "rel": rel, "w": w, "h": hgt}
+    return {"nodes": nodes, "labels": labels, "byid": byid, "rk": rk, "rel": rel, "w": w, "h": hgt, "rows": rows}
 
 
 def draw_graph(doc, title, plan, edges, x0, y0, highlight, external):
@@ -182,6 +228,7 @@ def draw_graph(doc, title, plan, edges, x0, y0, highlight, external):
     between columns when they skip ranks. Labels are white text boxes on the edge's own segments, slid along the
     segment until they touch no box and no other label; a label wider than its segment sits beside the line."""
     nodes, labels, rk, rel = plan["nodes"], plan["labels"], plan["rk"], plan["rel"]
+    byid = plan["byid"]
     ax_ = {n: x0 + rel[n][0] for n in nodes}                      # box left x; y comes after the lane count is known
     nranks = max(rk.values()) + 1
 
@@ -246,10 +293,7 @@ def draw_graph(doc, title, plan, edges, x0, y0, highlight, external):
     ids, abs_ = {}, {}
     for n in nodes:
         abs_[n] = (ax_[n], ry[rk[n]])
-        fill, stroke = COL["H" if n == highlight else "K"]
-        extra = "strokeWidth=3;fontStyle=1;" if n == highlight else ""
-        extra += "dashed=1;" if n in external else ""
-        ids[n] = doc.box(h(labels[n]), rel[n][0], ry[rk[n]] - y0, NW, NH, f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};{extra}", parent=box)
+        ids[n] = doc.box(h(labels[n]), rel[n][0], ry[rk[n]] - y0, NW, NH, node_style(byid[n], highlight), parent=box)
     rects = [(abs_[n][0], abs_[n][1], abs_[n][0] + NW, abs_[n][1] + NH) for n in nodes]
 
     placed, pending, lines = [], [], []                            # label rects placed; (label, segments) to place; all segments
@@ -332,6 +376,7 @@ def graph_diagram(spec, out, highlight, name):
     if highlight is not None:
         legend(doc, 40, ly, ["H", "K"])
         ly += 40
+    role_legend(doc, 40 + plan["w"] + 30, 20, spec)
     if any(kind != "call" for _, _, _, kind in edges):
         doc.box("solid = call, dashed = data, dotted = event", 40, ly, 320, 24, "text;html=1;fontSize=11;fontColor=#666666;")
     doc.write(out, name)
@@ -404,32 +449,78 @@ def sequence_diagram(spec, out):
 
 
 # ---------------------------------------------------------------- flow (left-to-right stages)
-FW, FH, FXS, FYS = 150, 50, 220, 90
+FW, FH, FGAP, FYS, NOTE_H, GPAD = 130, 56, 70, 110, 30, 22   # min node width, height, column gap, row pitch, note height, group padding
 
 
-def flow_diagram(spec, out):
-    # ponytail: draw.io's own orthogonal router handles flow-scale edge counts; the lane router above is for maps.
+def flow_diagram(spec, out, name="Flow"):
+    """Ranks as columns left to right, each column as wide as its longest label; barycenter row order from
+    plan_graph. Nodes that share a group sit in one dashed container labelled with the group. A note is italic
+    text under its node. Same-row edges run straight; an edge to another row leaves the bottom or top of its
+    source's right side, runs down the column gutter and along the gap beside the target's row, and enters the target
+    from above or below."""
+    # ponytail: gutter and lane runs cross lines only, never boxes; two edges into one gap share a lane and overlap.
     edges = check_graph(spec)
-    nodes = [str(n["id"]) for n in spec["nodes"]]
-    labels = {str(n["id"]): str(n.get("label", n["id"])) for n in spec["nodes"]}
-    external = {str(n["id"]) for n in spec["nodes"] if n.get("external")}
-    rk = ranks(nodes, [(a, b) for a, b, _, _ in edges])
-    cols = OrderedDict((r, [n for n in nodes if rk[n] == r]) for r in sorted(set(rk.values())))
+    pairs = [(a, b) for a, b, _, _ in edges]
+    plan = plan_graph(spec, pairs)
+    nodes, labels, byid, rk = plan["nodes"], plan["labels"], plan["byid"], dict(plan["rk"])
+    for n in nodes:                                                # a source sits right before its first consumer
+        succ = [rk[b] for a, b in pairs if a == n and b != n]
+        if succ and not any(b == n for a, b in pairs if a != n):
+            rk[n] = min(succ) - 1
+    rows = OrderedDict((r, [n for n in nodes if rk[n] == r]) for r in sorted(set(rk.values())))
+    colw = {r: max(FW, min(220, max(round(len(labels[n]) * CHAR_W * 0.55) + 30 for n in col))) for r, col in rows.items()}
+    row = {}
+    for r, col in rows.items():
+        order = sorted(col, key=lambda n: plan["rel"][n][0])
+        for i, n in enumerate(order):
+            row[n] = i
+    gap = dict.fromkeys(rows, FGAP)                                # a gap grows to fit the widest same-row label crossing it
+    for a, b, label, _ in edges:
+        if label and rk[b] == rk[a] + 1 and row[a] == row[b]:
+            gap[rk[a]] = max(gap[rk[a]], round(len(label) * CHAR_W) + 24)
+    x0 = 40
+    cx = {}
+    for r in rows:
+        cx[r] = x0
+        x0 += colw[r] + gap[r]
+    y0 = 60 + (34 if any(n.get("group") for n in spec["nodes"]) else 0)
+    geo = {n: (cx[rk[n]], y0 + row[n] * FYS, colw[rk[n]], FH) for n in nodes}
     doc = Doc()
-    doc.box(h(spec.get("title", "Flow")), 40, 15, 600, 30, "text;html=1;fontSize=16;fontStyle=1;")
+    doc.box(h(spec.get("title", name)), 40, 15, 800, 30, "text;html=1;fontSize=16;fontStyle=1;")
+    groups = OrderedDict()
+    for n in nodes:
+        g = byid[n].get("group")
+        if g:
+            groups.setdefault(str(g), []).append(n)
+    for g, members in groups.items():                             # containers first: they sit behind the nodes
+        x1 = min(geo[n][0] for n in members) - GPAD
+        y1 = min(geo[n][1] for n in members) - GPAD - 26
+        x2 = max(geo[n][0] + geo[n][2] for n in members) + GPAD
+        y2 = max(geo[n][1] + geo[n][3] + (NOTE_H if byid[n].get("note") else 0) for n in members) + GPAD
+        doc.box(h(g), x1, y1, x2 - x1, y2 - y1, "rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#000000;"
+                "verticalAlign=top;fontSize=13;spacingTop=4;")
     ids = {}
-    for r, col in cols.items():
-        for i, n in enumerate(col):
-            fill, stroke = COL["K"]
-            dash = "dashed=1;" if n in external else ""
-            ids[n] = doc.box(h(labels[n]), 40 + r * FXS, 60 + i * FYS, FW, FH,
-                             f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};{dash}")
+    for n in nodes:
+        x, y, w, hh = geo[n]
+        ids[n] = doc.box(h(labels[n]), x, y, w, hh, node_style(byid[n]))
+        if byid[n].get("note"):
+            doc.box(h(byid[n]["note"]), x - 20, y + hh + 2, w + 40, NOTE_H,
+                    "text;html=1;fontSize=10;fontStyle=2;align=center;verticalAlign=top;whiteSpace=wrap;fontColor=#333333;")
     for a, b, label, kind in edges:
-        doc.edge(ids[a], ids[b], f"strokeColor=#666666;labelBackgroundColor=#ffffff;fontSize=11;{EDGE_KIND[kind]}", label=h(label))
-    if any(kind != "call" for _, _, _, kind in edges):
-        ly = 60 + max(len(c) for c in cols.values()) * FYS + 10
-        doc.box("solid = call, dashed = data, dotted = event", 40, ly, 320, 24, "text;html=1;fontSize=11;fontColor=#666666;")
-    doc.write(out, "Flow")
+        style = f"strokeColor=#000000;labelBackgroundColor=#ffffff;fontSize=11;{EDGE_KIND[kind]}"
+        (ax, ay, aw, ah), (bx, by, bw, bh) = geo[a], geo[b]
+        if row[a] == row[b] or rk[a] >= rk[b]:
+            side = "exitX=1;exitY=0.5;entryX=0;entryY=0.5;verticalAlign=bottom;labelBackgroundColor=none;" if rk[a] < rk[b] else ""
+            doc.edge(ids[a], ids[b], style + side, label=h(label))   # a same-row label sits above its short line
+        else:                                                      # right, along the gutter, along the row gap, into the target
+            down = by > ay
+            gx = ax + aw + gap[rk[a]] // 2
+            lane = by - 14 if down else by + bh + NOTE_H + 10
+            doc.edge(ids[a], ids[b], style + f"exitX=1;exitY=0.5;entryX=0.5;entryY={0 if down else 1};",
+                     label=h(label), points=[(gx, ay + ah // 2), (gx, lane), (bx + bw // 2, lane)], base="edgeStyle=none;")
+    lx = max(x + w for x, y, w, hh in geo.values()) + 50
+    role_legend(doc, lx, y0 - 10, spec)
+    doc.write(out, name)
 
 
 # ---------------------------------------------------------------- export
@@ -510,10 +601,10 @@ def main(argv):
     spec = load_spec(argv[1])
     if cmd == "sequence":
         sequence_diagram(spec, out)
-    elif cmd == "flow":
-        flow_diagram(spec, out)
+    elif cmd == "system":
+        graph_diagram(spec, out, opts["--highlight"], "System")
     else:
-        graph_diagram(spec, out, opts["--highlight"] if cmd == "system" else None, "System" if cmd == "system" else "Components")
+        flow_diagram(spec, out, "Flow" if cmd == "flow" else "Components")
     print(f"wrote {out}", file=sys.stderr)
     if png:
         p = export_png(out)
