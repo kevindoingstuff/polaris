@@ -55,7 +55,7 @@ Done when each target has its stages, its input and output list with schemas, it
 
 ## 5. Drift
 
-Conflicts exist: one `AskUserQuestion` call per four conflicts. Per question: header = module id; question = `<doc path> says "<claim>". The code does <fact> (<path:line>). Which does the doc follow?`; options **The code** (the design doc is stale) and **The design doc** (the code is behind). No conflicts: no question.
+Conflicts exist: one `AskUserQuestion` call per four conflicts. Per question: header = module id; question = `<doc path> says "<claim>". The code does <fact> (<path:line>). Which does the doc follow?`; options **The code** (the design doc is stale) and **The design doc** (the code is behind). The answer is the fact the doc states; the doc records no conflict of its own. No conflicts: no question.
 
 Done when every conflict has an answer. Line: `drift: 2 conflicts, 2 follow the code`.
 
@@ -87,7 +87,7 @@ generated_at: <YYYY-MM-DD>
 ---
 ```
 
-Title `# <Module name> User Guide`. Module sections as `##`, in this order: Overview; Inputs and Outputs; Folder Structure; Quickstart (with its `### Configuration` table); Components (summary table, then one `###` per component with `#### Inputs and Outputs` always, `#### Configuration` and `#### Things to Note` when earned); Data Flow (only with a flow); Drift (only with conflicts). Held keep blocks return verbatim at the end of their section; heading gone: append them at the end of the doc under the original heading. Image links are relative to `docs/`.
+Title `# <Module name> User Guide`. Module sections as `##`, in this order: Overview; Inputs and Outputs; Folder Structure; Quickstart (with its `### Configuration` table); Components (summary table, then one `###` per component with `#### Inputs and Outputs` always, `#### Configuration` and `#### Things to Note` when earned); Data Flow (only with a flow). Held keep blocks return verbatim at the end of their section; heading gone: append them at the end of the doc under the original heading. Image links are relative to `docs/`.
 
 Prose per the Prose section of `references/template.md`: second person for the reader, purpose before names, the reason beside a surprising choice, an example beside every Quickstart variable, no dashes.
 
@@ -97,4 +97,4 @@ Done when each target doc has the headings in order, the stamp, a citation on ev
 
 ## 8. Report
 
-One line per `.drawio` that has no `.png`, when any. Sphinx mode: the line `build: sphinx-build -b html docs docs/_build` (scaffold: preceded by `install: uv sync --group docs` or `pip install -r docs/requirements.txt`). Then the last line: `docs: api updated, auth created, shared unchanged; review with git diff -- docs/`.
+One line per `.drawio` that has no `.png`, when any. Sphinx mode: the line `build: sphinx-build -b html docs docs/_build` (scaffold: preceded by `install: uv sync --group docs` or `pip install -r docs/requirements.txt`), then the line `view: python -m http.server -d docs/_build 8000, then open http://localhost:8000`. Then the last line: `docs: api updated, auth created, shared unchanged; review with git diff -- docs/`.

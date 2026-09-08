@@ -1,6 +1,6 @@
 # The module doc
 
-Every `docs/<module>.md` has this shape. The operator sections come first (what it does, what goes in and out, how to run it), the cited reference last. The title is `# <Module name> User Guide`. Module-level headings are `##` in Title Case, in this order. Components nest as `###` inside `## Components`, their parts as `####`. Two module sections are conditional: Data flow (only with a flow) and Drift (only with conflicts). `<img>` is `_static/diagrams` in Sphinx mode, `diagrams` in plain mode (see [`sphinx.md`](sphinx.md)).
+Every `docs/<module>.md` has this shape. The operator sections come first (what it does, what goes in and out, how to run it), the cited reference last. The title is `# <Module name> User Guide`. Module-level headings are `##` in Title Case, in this order. Components nest as `###` inside `## Components`, their parts as `####`. One module section is conditional: Data flow (only with a flow). `<img>` is `_static/diagrams` in Sphinx mode, `diagrams` in plain mode (see [`sphinx.md`](sphinx.md)).
 
 ````markdown
 ---
@@ -124,11 +124,6 @@ Numbered steps for the flow in the diagram, one sentence each, each with its sou
 1. `main` loads the rows from `DATA_PATH` (`trainer/pipeline.py:47`).
 2. `validate` rejects the run on a bad row (`trainer/pipeline.py:14`).
 
-## Drift
-
-One bullet per conflict, both citations, which side the doc follows.
-
-- `ARCHITECTURE.md:14` says auth validates sessions against Redis. The code verifies a JWT with `JWT_SECRET` (`src/auth/verify.js:6`). This doc follows the code.
 ````
 
 The fenced example is content only: the rules below never appear in a generated doc.
@@ -140,7 +135,7 @@ The fenced example is content only: the rules below never appear in a generated 
 - **Folder structure**: a tree of the module folder, one comment per file. Generated folders and caches out.
 - **Quickstart**: a callout with the precondition when one exists, then numbered `### N. <verb phrase>` steps from what a first run needs: point at the data, set the keys, run the command, find the outputs. Each step's bullets name the exact variable, key, or file to change. Commands quoted with the source path in a trailing comment. Then `### Configuration`: every key the module reads at start, from config files and the environment, one table; over 15 rows: the boot-critical ones plus one pointer row naming the file.
 - **Components**: the components diagram, a summary table (component, where it lives, one sentence), then one `###` per component in flow order. Names match the diagram and the table.
-- **Data flow** and **Drift**: as before.
+- **Data flow**: as before.
 
 ## Components
 
@@ -168,7 +163,7 @@ On update, each block goes back at the end of the section whose heading it was f
 
 ## Citations
 
-Every fact comes from a file. The citation lives where it does not break the reading: a `Source` column in tables, a trailing `# path:line` comment on a command, `(path:line)` on a bullet in Inputs and outputs, Things to note, Data flow, and Drift. Prose paragraphs carry no citation. A line number for a symbol or a read; a path alone for a whole file.
+Every fact comes from a file. The citation lives where it does not break the reading: a `Source` column in tables, a trailing `# path:line` comment on a command, `(path:line)` on a bullet in Inputs and outputs, Things to note, and Data flow. Prose paragraphs carry no citation. A line number for a symbol or a read; a path alone for a whole file.
 
 ## Callouts
 
