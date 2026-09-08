@@ -126,9 +126,19 @@ From the repo you want documented:
 > /docs
 ```
 
-Pick the modules from the picker, or target them with `/docs api worker`. The skill surveys the repo, offers to write a `get_started.md` from two questions, reads the design docs and the code, asks one question per documented claim the code contradicts, then writes `docs/<module>.md` per module. Each doc reads as a user guide first (an overview with the stages, the inputs and outputs with schema tables, the folder structure, a quickstart with its configuration table) and a cited reference last (one section per component with inputs and outputs, configuration, and the notes it earns, a data flow, and the drift answers).
+Pick the modules from the picker, or target them with `/docs api worker`. The skill surveys the repo, offers to write a `get_started.md` from two questions, reads the design docs and the code, asks one question per documented claim the code contradicts, then writes `docs/<module>.md` per module. Each doc reads as a user guide first (an overview with the stages, the inputs and outputs with schema tables, the folder structure, a quickstart with its configuration table) and a cited reference last (one section per component with inputs and outputs, configuration, and the notes it earns, plus a data flow).
 
 A Python repo runs in Sphinx mode: MyST markdown, `docs/index.md` as the index, a scaffolded `conf.py` and `reference/api.rst` when the repo has none, diagrams under `docs/_static/diagrams/`. Any other repo runs in plain mode: `docs/README.md` as the index, diagrams under `docs/diagrams/`. Diagrams are `.drawio` files, with `.drawio.png` exports when [draw.io desktop](https://github.com/jgraph/drawio-desktop/releases) is installed.
+
+To read the Sphinx site, install the doc dependencies, build it, and serve it:
+
+```bash
+uv sync --group docs          # or: pip install -r docs/requirements.txt
+sphinx-build -b html docs docs/_build
+python -m http.server -d docs/_build 8000
+```
+
+Open http://localhost:8000. The skill prints these commands at the end of a Sphinx run. A plain-mode repo needs none of this: read `docs/README.md` on GitHub.
 
 `/docs update` regenerates only the modules whose code changed since the stamp in each doc; `<!-- keep -->` blocks in a doc survive regeneration. Every fact in a doc carries a `path:line` citation; a fact with no source stays out.
 
