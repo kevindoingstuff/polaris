@@ -17,9 +17,9 @@ Rules for the whole run:
 
 ## 0. Survey
 
-Read, do not ask: `git rev-parse HEAD`; `git status --porcelain` (a dirty file under a module: one warning line, the stamp is still HEAD); ecosystem files (`package.json` and its `workspaces`, `pyproject.toml`, `go.mod`, `Cargo.toml` and its `[workspace]`); the mode: Python present: sphinx, and `docs/conf.py` present: existing setup, else scaffold; no Python: plain; the diagram engine: `dot -V` succeeds and the `drawio-skill` skill is listed: engine = drawio-skill, else engine = script; stamped docs (`grep -l '^generated_from:' docs/*.md`); design docs (`README.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `docs/adr/`, `adr/`, `design/`, `notebooks/*.md`, and `docs/**/*.md` without a stamp, at most 20 by size: a stamped doc is output, never a source); a plain-mode `docs/README.md` or a Sphinx-mode `docs/index.md` without a stamp: one warning line, the file is left alone; modules per `references/modules.md` (a detected package with no source beyond `__init__.py` is dropped with one warning line).
+Read, do not ask: `git rev-parse HEAD`; `git status --porcelain` (a dirty file under a module: one warning line, the stamp is still HEAD); ecosystem files (`package.json` and its `workspaces`, `pyproject.toml`, `go.mod`, `Cargo.toml` and its `[workspace]`); the mode: Python present: sphinx, and `docs/conf.py` present: existing setup, else scaffold; no Python: plain; stamped docs (`grep -l '^generated_from:' docs/*.md`); design docs (`README.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `docs/adr/`, `adr/`, `design/`, `notebooks/*.md`, and `docs/**/*.md` without a stamp, at most 20 by size: a stamped doc is output, never a source); a plain-mode `docs/README.md` or a Sphinx-mode `docs/index.md` without a stamp: one warning line, the file is left alone; modules per `references/modules.md` (a detected package with no source beyond `__init__.py` is dropped with one warning line).
 
-Done when you have the module list with paths, the mode, and the design doc list. Line: `survey: python, 5 modules, 2 stamped, mode: sphinx (scaffold), engine: script, design docs: README.md notebooks/data_pipeline.md`.
+Done when you have the module list with paths, the mode, and the design doc list. Line: `survey: python, 5 modules, 2 stamped, mode: sphinx (scaffold), design docs: README.md notebooks/data_pipeline.md`.
 
 ## 1. Targets
 
@@ -61,9 +61,7 @@ Done when every conflict has an answer. Line: `drift: 2 conflicts, 2 follow the 
 
 ## 6. Diagrams
 
-Engine drawio-skill (Graphviz and the plugin present): `Call the Skill tool with "drawio-skill"` and ask it for the same charts into the same paths: the system map from the module list with `<m>` highlighted (`autolayout.py`, or `c4.py` for the highlighted view), the components of `<m>` from its imports (`pyimports`, `jsimports`, `goimports`, `rustimports`, `pyclasses`, as the language needs), the sequence with `seqlayout.py`, and the gated component sub-diagrams below. Same file names, same gates, PNG export on. Then skip to Done.
-
-Engine script: write the specs in `<tmp>` per `references/diagrams.md`. `system.json` once per run: every detected module plus the external systems the code reaches (a connection, a request, a file outside the repo; a variable that is read and never used is not a system), reused for every highlight. Then run:
+Write the specs in `<tmp>` per `references/diagrams.md`. `system.json` once per run: every detected module plus the external systems the code reaches (a connection, a request, a file outside the repo; a variable that is read and never used is not a system), reused for every highlight. Then run:
 
 ```
 python <skill-dir>/scripts/docsdiagram.py system <tmp>/system.json -o docs/<img>/system.drawio --png
@@ -73,7 +71,7 @@ python <skill-dir>/scripts/docsdiagram.py sequence <tmp>/<m>-sequence.json -o do
 python <skill-dir>/scripts/docsdiagram.py flow <tmp>/<m>-<c>.json -o docs/<img>/<m>/<c>.drawio --png
 ```
 
-Every graph spec uses the node vocabulary in `references/diagrams.md`: the data a step reads or writes is a `data` node with a `role`, config is a `config` node, a function's steps share a `group`, and a `note` carries the format or path. `sequence` only when the module handles a request, a job, or an event itself; a module that only answers calls from another module has none. One flow, the main one. A component with three or more internal units or a flow of its own gets a sub-diagram (`components`, `flow`, or `sequence` per `references/diagrams.md`); fewer: none. A non-zero exit prints one line that says why: fix the spec, run again. No `.png` (draw.io desktop absent): link the `.drawio` and name it in area 8. Either engine may add extra charts (ERD, C4) to the same folder; the script engine needs nothing beyond Python and draw.io desktop.
+Every graph spec uses the node vocabulary in `references/diagrams.md`: the data a step reads or writes is a `data` node with a `role`, config is a `config` node, a function's steps share a `group`, and a `note` carries the format or path. `sequence` only when the module handles a request, a job, or an event itself; a module that only answers calls from another module has none. One flow, the main one. A component with three or more internal units or a flow of its own gets a sub-diagram (`components`, `flow`, or `sequence` per `references/diagrams.md`); fewer: none. A non-zero exit prints one line that says why: fix the spec, run again. No `.png` (draw.io desktop absent): link the `.drawio` and name it in area 8.
 
 Done when every target has `system.drawio` and `components.drawio` (plus `.png` when draw.io is present), `sequence.drawio` when it has a flow, every gated component its sub-diagram, and `docs/<img>/system.drawio` exists.
 
