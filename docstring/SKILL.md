@@ -22,6 +22,12 @@ Target = the argument, else the files in `git diff` (else `git diff HEAD~1`).
   `Yields:` entry that renames the parameter or repeats the summary. Delete it;
   never pad it. Keep an entry only where deleting it loses a fact stated nowhere
   else in the docstring or the signature: a unit, a range, a meaning, `unused`.
+- **`Args:` is all or nothing.** A section listing some parameters and not
+  others reads as an oversight, renders as a hole in the Sphinx parameter
+  table, and trips `D417`. If one parameter carries a fact, list every
+  parameter and keep the echoes to a few bare words. If none does, delete the
+  whole section and put any single fact in the summary or one line under it.
+  Never a partial table. The same applies to `Attributes:`.
 - **Cruft** — changelogs, dates, authors, tickets, `TODO`, design rationale,
   assistant boilerplate ("Certainly! Here is"), marketing ("robust",
   "gracefully handles"), hedging ("should generally", "if applicable").
@@ -51,6 +57,11 @@ violate, and how a generator ends. A class or dataclass carries the same duty in
 The same list governs a docstring you write from scratch. State the unit, not
 the formula: `base * 2**attempt` is the implementation; "seconds" is the
 contract.
+
+Write the prose in ASD-STE100 Simplified Technical English: active voice,
+present tense, one idea per sentence, under 20 words, articles before nouns, no
+contraction and no -ing verb. A domain term (`idempotent`, `monotonic`, `HMAC`)
+is a technical name and stays.
 
 ## Prove it
 
