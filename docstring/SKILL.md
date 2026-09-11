@@ -58,6 +58,11 @@ The same list governs a docstring you write from scratch. State the unit, not
 the formula: `base * 2**attempt` is the implementation; "seconds" is the
 contract.
 
+Write the prose in ASD-STE100 Simplified Technical English: active voice,
+present tense, one idea per sentence, under 20 words, articles before nouns, no
+contraction and no -ing verb. A domain term (`idempotent`, `monotonic`, `HMAC`)
+is a technical name and stays.
+
 ## Prove it
 
 Trace before you assert. A `Raises:` entry needs a `raise` in the body or in
